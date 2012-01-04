@@ -2262,9 +2262,6 @@ class P4Sync(Command):
         if self.fileDump:
             print "Finished processing. Data may be manually utilized now (e.g. sent to git fast-import)"
         else:
-            if debugDumpFile:
-                debugDumpFile.close()
-
             self.gitOutput, self.gitError = importProcess.communicate()
 
             if importProcess.returncode != 0:
