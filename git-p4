@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 #
 # git-p4.py -- A tool for bidirectional operation between a Perforce depot and git.
 #
@@ -2193,19 +2193,15 @@ class P4Sync(Command):
         
         self.tz = "%+03d%02d" % (- time.timezone / 3600, ((- time.timezone % 3600) / 60))
 
-        if self.fileDump:
-            self.gitStream = open("git-p4-dump", "wb")
-        else:
-            if self.debug:
-                tmpfile = "%s/p4import" % tempfile.gettempdir()
-                print "Writing input for 'git fast-import' to %s\n" % tmpfile
-                debugDumpFile = open(tmpfile, "w")
-            else:
-                debugDumpFile = None
+        importProcess = None
+        if not self.fileDump:
+          importProcess = subprocess.Popen(["git", "fast-import"],
+                                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE);
+          self.gitStream = importProcess.stdin
 
-            importProcess = subprocess.Popen(["git", "fast-import"],
-                                             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-            self.gitStream = LargeFileWriter(importProcess.stdin, debugDumpFile)
+        else:
+          self.gitStream = open("git-p4-dump", "wb")
 
         try:
             if revision:
@@ -2269,7 +2265,7 @@ class P4Sync(Command):
             if debugDumpFile:
                 debugDumpFile.close()
 
-            importProcess.communicate()
+            self.gitOutput, self.gitError = importProcess.communicate()
 
             if importProcess.returncode != 0:
                 die("fast-import failed")
