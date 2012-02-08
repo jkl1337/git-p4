@@ -27,7 +27,7 @@ def die(msg):
 
 class LargeFileWriter:
     """Wrapper for a file, to get around a windows bug when writing large amounts of data.
-    
+
     When writing to the wrapped file object, writes are broken up so that only 10MB are written at
     a time. Otherwise, there is IO exception on Windows.
     """
@@ -46,7 +46,7 @@ class LargeFileWriter:
             self.filedesc.flush()
             text= text[chunk:]
 
-        if len(text):    
+        if len(text):
             self.filedesc.write(text[:chunk])
             self.filedesc.flush()
             if self.debug is not None:
@@ -55,7 +55,7 @@ class LargeFileWriter:
 class P4Helper:
     """ Encapsulates P4 methods so that they can be replaced for testing purposes
     """
-    
+
     def p4_build_cmd(self, cmd):
         """Build a suitable p4 command line.
 
@@ -93,7 +93,7 @@ class P4Helper:
     def p4_write_pipe(self, c, str):
         real_cmd = self.p4_build_cmd(c)
         return write_pipe(real_cmd, str)
-        
+
     def p4_read_write_pipe(self, c, str, ignore_error=False):
         real_cmd = self.p4_build_cmd(c)
         return read_write_pipe(real_cmd, str,  ignore_error)
@@ -166,7 +166,7 @@ class P4Helper:
 
     def p4CmdList(self, cmd, stdin=None, stdin_mode='w+b'):
 
-        p4 = self.p4CmdListOpen(cmd, stdin, stdin_mode)    
+        p4 = self.p4CmdListOpen(cmd, stdin, stdin_mode)
         result = []
         try:
             while True:
@@ -240,7 +240,7 @@ class P4Helper:
 
         changes.sort()
         return changes
-        
+
     def integrateFile(self, diff, changelist=""):
         src, dest = diff['src'], diff['dst']
         self.p4_system("integrate %s -Dt \"%s\" \"%s\"" % (changelist, src, escapeStringP4(dest)))
@@ -457,8 +457,8 @@ def extractSettingsFromNotes(commit):
     if paths:
         values['depot-paths'] = paths.split(',')
     return values
-    
-    
+
+
 def gitBranchExists(branch):
     proc = subprocess.Popen(["git", "rev-parse", branch],
                             stderr=subprocess.PIPE, stdout=subprocess.PIPE);
@@ -496,7 +496,7 @@ def p4BranchesInGit(branchesAreInRemotes = True):
         branch = re.sub ("^p4/", "", line)
 
         # branches["master"] = parseRevision("p4/master")
-        branches[branch] = parseRevision(line) 
+        branches[branch] = parseRevision(line)
     return branches
 
 def findUpstreamBranchPoint(head = "HEAD"):
@@ -804,9 +804,11 @@ class P4FileReader:
                 # perforce gave us something we didn't ask for?
                 print "Bad path: %s" % filePath
                 continue
-            
+
 
 class P4Submit(Command):
+    rcsKeywords = ["Revision", "DateTime", "Author"]
+
     def __init__(self):
         Command.__init__(self)
         self.options = [
@@ -894,12 +896,22 @@ class P4Submit(Command):
         return template
 
     def applyPatch(self, id):
-        diffcmd = "git format-patch -k --stdout \"%s^\"..\"%s\"" % (id, id)
+        diffcmd = "git format-patch -U1 -k --stdout \"%s^\"..\"%s\"" % (id, id)
         patchcmd = diffcmd + " | git apply "
         tryPatchCmd = patchcmd + "--check -"
         applyPatchCmd = patchcmd + "--check --apply -"
 
+        patchFailed = False
+
         if os.system(tryPatchCmd) != 0:
+            print "\nFirst patch attempt failed, trying to strip RCS key words..."
+            self.stripRcs()
+            print "OK: RCS keywords replaced, trying patch again..."
+            patchFailed = (os.system(tryPatchCmd) != 0)
+        else:
+            patchFailed = False
+
+        if patchFailed:
             print "Unfortunately applying the change failed!"
             print "What do you want to do?"
             response = "x"
@@ -924,9 +936,19 @@ class P4Submit(Command):
                 print "Patch saved to patch.txt in %s !" % self.clientPath
                 die("Please resolve and submit the conflict manually and "
                     "continue afterwards with git-p4 submit --continue")
+        else:
+            print "Patch was successful!"
 
         system(applyPatchCmd)
         return True
+
+    def stripRcs(self):
+        sedcmd = "sed -i 's/\$Id:[^$]*/$Id/'"
+        files = self.editedFiles.union(self.filesToDelete)
+        for f in files:
+            for kw in P4Submit.rcsKeywords:
+                cmd = sedcmd.replace("Id",kw) + " " + f
+                os.system(cmd)
 
     def integrateFile(self, diff, changelist=""):
         dest = self.p4.integrateFile(diff, changelist)
@@ -1079,7 +1101,7 @@ class P4Submit(Command):
             self.revertCommit()
 
         self.addOrDeleteFiles()
-        
+
         # Set/clear executable bits
         self.setExecutableBits()
 
@@ -1091,7 +1113,7 @@ class P4Submit(Command):
         diff = "\n".join( read_pipe_lines("git diff \"%s^\" \"%s\"" % (id, id)) )
         template = self.prepareSubmitTemplate()
         changelist = self.submit(template, logMessage, diff)
-        
+
         # Add note
         if changelist > 0:
             cmd = 'git notes --ref=git-p4 add -m "[depot-paths = \\"%s\\": change = %s]" %s' % (self.depotPath, changelist, id)
@@ -1160,7 +1182,7 @@ class P4Submit(Command):
             print "Commits to apply: %s" % self.commits
 
         self.applyCommits()
-        
+
         if self.abort == False:
             system("git update-ref %s%s %s" % (getRefsPrefix(self.importIntoRemotes), self.master, self.master))
 
@@ -1173,7 +1195,7 @@ class P4Submit(Command):
 class P4Sync(Command):
     delete_actions = ( "delete", "move/delete", "purge" )
     merge_actions = ( "branch", "integrate" )
-    
+
     def __init__(self):
         Command.__init__(self)
         self.options = [
@@ -1244,7 +1266,7 @@ class P4Sync(Command):
 
         self.knownBranches = {}
         self.initialParents = {}
-        
+
         if gitConfig("git-p4.syncFromOrigin") == "false":
             self.syncWithOrigin = False
 
@@ -1488,7 +1510,7 @@ class P4Sync(Command):
                     self.gitStream.write("D %s\n" % relPath)
 
         self.gitStream.write("\n")
-        
+
         #commit refs/notes/git-p4
         #mark :2
         #committer <someuser@example.com> 1289238991 +0100
@@ -1536,7 +1558,7 @@ class P4Sync(Command):
                 if self.fuzzyTags and len(cleanedFiles) != len(labelRevisions):
                     for fileInLabel in labelRevisions:
                         if not cleanedFiles.has_key(fileInLabel) or cleanedFiles[fileInLabel] != labelRevisions[fileInLabel]:
-                            print ("Tag %s does not match with change %s: revision of file %s different" 
+                            print ("Tag %s does not match with change %s: revision of file %s different"
                                    % (labelDetails["label"], change, fileInLabel))
                             return
 
@@ -2062,7 +2084,7 @@ class P4Sync(Command):
             self.changeRange = "@%s,#head" % p4Change
             if not self.silent and not self.detectBranches:
                 print "Performing incremental import into %s git branch" % self.branch
-        
+
     def adjustDepotPaths(self):
         revision = ""
         newPaths = []
@@ -2118,7 +2140,7 @@ class P4Sync(Command):
     def run(self, args):
         if self.debug:
             self.verbose = True
-            
+
         # map from branch depot path to parent branch
         self.hasOrigin = originP4BranchesExist()
         if not self.syncWithOrigin:
@@ -2190,7 +2212,7 @@ class P4Sync(Command):
 
         if self.detectBranches:
             self.detectP4Branches()
-        
+
         self.tz = "%+03d%02d" % (- time.timezone / 3600, ((- time.timezone % 3600) / 60))
 
         importProcess = None
@@ -2421,7 +2443,7 @@ class P4Shelve(P4Submit):
         self.options += [
             optparse.make_option("-c", dest="clnumber",
                                  action='store', default="",
-                                 help="existing changelist to use for shelving"), 
+                                 help="existing changelist to use for shelving"),
             optparse.make_option("-d",
                                  dest="deleteShelve", action="store_true",
                                  help="delete previously shelved files")
@@ -2430,7 +2452,7 @@ class P4Shelve(P4Submit):
         self.clnumber = ""
         self.existingClNumber = ""
         self.deleteShelve = False
-        
+
     def integrateFile(self, diff, changelist=""):
         changelist = "-c %s" % self.clnumber
         P4Submit.integrateFile(self, diff, changelist)
@@ -2540,7 +2562,7 @@ commands = {
     "rebase" : P4Rebase,
     "clone" : P4Clone,
     "rollback" : P4RollBack,
-    "branches" : P4Branches, 
+    "branches" : P4Branches,
     "shelve"   : P4Shelve
 }
 
