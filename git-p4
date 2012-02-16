@@ -10,6 +10,7 @@
 
 import optparse, sys, os, marshal, subprocess, shlex
 import tempfile, os.path, time, platform
+import pipes
 import re
 import cStringIO
 import StringIO
@@ -943,12 +944,20 @@ class P4Submit(Command):
         return True
 
     def stripRcs(self):
-        sedcmd = "sed -i 's/\$Id:[^$]*/$Id/'"
+        rcsPattern = r"(\$%s):[^$]*" % "|".join(P4Submit.rcsKeywords)
+        rcsRegex = re.compile(rcsPattern)
+
         files = self.editedFiles.union(self.filesToDelete)
-        for f in files:
-            for kw in P4Submit.rcsKeywords:
-                cmd = sedcmd.replace("Id",kw) + " " + f
-                os.system(cmd)
+
+        for fn in files:
+            with open(fn, 'rb') as file, tempfile.NamedTemporaryFile(dir=os.path.dirname(fn), delete=False) as tempFile:
+                for line in file:
+                    outLine = re.sub(rcsRegex, r"\1", line)
+                    tempFile.write(outLine)
+                file.close()
+                tempFile.close()
+                os.remove(fn)
+                os.rename(tempFile.name, fn)
 
     def integrateFile(self, diff, changelist=""):
         dest = self.p4.integrateFile(diff, changelist)
